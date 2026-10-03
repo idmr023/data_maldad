@@ -1,0 +1,7 @@
+INSERT INTO reference.tipos_transaccion (codigo, descripcion, requiere_destino) VALUES
+('TRANSFERENCIA', 'Transferencia entre cuentas propias o de terceros', 'true'),
+('TRANSFERENCIA_PLIN', 'Transferencia inmediata billetera Plin', 'true'),
+('DEPOSITO', 'Deposito en efectivo o ventanilla', 'false'),
+('RETIRO', 'Retiro de efectivo (ATM o ventanilla)', 'false'),
+('COMPRA_POS', 'Compra con tarjeta en comercio POS', 'false'),
+('PAGO_QR', 'Pago con QR interoperable', 'false');

@@ -1,0 +1,343 @@
+%% Diagrama ER — BancoCloud v13 (generado desde dataset_maldad/db/master/bancocloud_master_v13.sql + entrega/ddl_gestiones.sql)
+%% Línea sólida = FK declarada | Línea punteada = FK lógica (sin constraint)
+%% No incluye las 12 particiones de core.transacciones ni las vistas/materialized views
+erDiagram
+    "reference.monedas" {
+        VARCHAR(3) moneda_id PK
+        VARCHAR(50) nombre
+        VARCHAR(5) simbolo
+    }
+    "reference.sucursales" {
+        SERIAL sucursal_id PK
+        VARCHAR(10) codigo_sucursal UK
+        VARCHAR(100) nombre_sucursal
+        VARCHAR(50) departamento
+        VARCHAR(50) provincia
+        VARCHAR(50) distrito
+        VARCHAR(20) tipo_sucursal
+        VARCHAR(20) estado
+    }
+    "reference.canales" {
+        SERIAL canal_id PK
+        VARCHAR(20) codigo_canal UK
+        VARCHAR(50) nombre_canal
+        VARCHAR(20) estado
+    }
+    "reference.productos" {
+        SERIAL producto_id PK
+        VARCHAR(20) codigo_producto UK
+        VARCHAR(100) nombre_producto
+        VARCHAR(30) familia_producto
+        VARCHAR(3) moneda_id FK
+        NUMERIC tasa_interes_referencial
+    }
+    "reference.tipos_transaccion" {
+        VARCHAR(30) codigo PK
+        TEXT descripcion
+        BOOLEAN requiere_destino
+    }
+
+    "core.clientes" {
+        UUID cliente_id PK
+        VARCHAR(64) dni_hash UK
+        BYTEA dni_cifrado
+        VARCHAR(100) nombre
+        VARCHAR(100) apellido
+        BYTEA email_cifrado
+        BYTEA telefono_cifrado
+        DATE fecha_nacimiento
+        VARCHAR(50) departamento
+        VARCHAR(50) provincia
+        VARCHAR(50) distrito
+        VARCHAR(20) segmento_cliente
+        VARCHAR(20) nivel_riesgo
+        INT score_riesgo
+        VARCHAR(20) estado
+        TIMESTAMPTZ created_at
+    }
+    "core.cuentas" {
+        BIGSERIAL cuenta_id PK
+        UUID cliente_id FK
+        INT producto_id FK
+        VARCHAR(20) numero_cuenta UK
+        VARCHAR(3) moneda_id FK
+        NUMERIC saldo_actual
+        NUMERIC saldo_disponible
+        NUMERIC saldo_inicial
+        VARCHAR(20) estado
+        TIMESTAMPTZ created_at
+    }
+    "core.tarjetas" {
+        BIGSERIAL tarjeta_id PK
+        BIGINT cuenta_id FK
+        UUID cliente_id FK
+        VARCHAR(64) token_tarjeta_hash UK
+        VARCHAR(19) mascara_pan
+        VARCHAR(10) tipo_tarjeta
+        NUMERIC limite_credito
+        NUMERIC saldo_utilizado
+        NUMERIC saldo_disponible
+        INT fecha_corte
+        INT fecha_pago
+        VARCHAR(20) estado
+        TIMESTAMPTZ created_at
+    }
+    "core.solicitudes_credito" {
+        BIGSERIAL solicitud_id PK
+        UUID cliente_id FK
+        INT producto_id FK
+        NUMERIC monto_solicitado
+        INT plazo_meses
+        TIMESTAMPTZ fecha_solicitud
+        VARCHAR(20) estado
+    }
+    "core.evaluaciones_credito" {
+        BIGSERIAL evaluacion_id PK
+        BIGINT solicitud_id FK
+        INT score_calculado
+        NUMERIC capacidad_pago
+        VARCHAR(20) decision
+        TEXT sustento
+        TIMESTAMPTZ fecha_evaluacion
+    }
+    "core.creditos" {
+        BIGSERIAL credito_id PK
+        BIGINT solicitud_id UK, FK
+        UUID cliente_id FK
+        INT producto_id FK
+        NUMERIC monto_aprobado
+        NUMERIC saldo_capital_pendiente
+        NUMERIC tasa_tea
+        INT plazo_meses
+        INT dias_mora
+        VARCHAR(20) bucket_riesgo
+        VARCHAR(20) estado
+    }
+    "core.cuotas" {
+        BIGSERIAL cuota_id PK
+        BIGINT credito_id FK
+        INT numero_cuota
+        NUMERIC monto_capital
+        NUMERIC monto_interes
+        NUMERIC seguro_desgravamen
+        NUMERIC monto_total_cuota
+        DATE fecha_vencimiento
+        VARCHAR(20) estado
+    }
+    "core.pagos_credito" {
+        BIGSERIAL pago_id PK
+        BIGINT cuota_id FK
+        NUMERIC monto_pagado
+        TIMESTAMPTZ fecha_pago
+        INT canal_id FK
+    }
+    "core.transacciones" {
+        BIGSERIAL transaccion_id PK
+        BIGINT cuenta_origen_id FK
+        BIGINT cuenta_destino_id FK
+        INT canal_id FK
+        INT sucursal_id FK
+        VARCHAR(30) tipo_transaccion FK
+        NUMERIC monto
+        VARCHAR(3) moneda_id FK
+        VARCHAR(64) idempotency_key
+        NUMERIC comision
+        UUID run_id
+        TIMESTAMPTZ fecha_transaccion PK
+        VARCHAR(20) estado
+    }
+    "core.idempotencia" {
+        INT canal_id PK, FK
+        VARCHAR(64) idempotency_key PK
+        BIGINT transaccion_id
+        TIMESTAMPTZ fecha_transaccion
+        TIMESTAMPTZ creado_en
+    }
+    "core.movimientos_contables" {
+        BIGSERIAL movimiento_id PK
+        BIGINT transaccion_id
+        BIGINT cuenta_id FK
+        VARCHAR(7) tipo_movimiento
+        NUMERIC monto
+        TIMESTAMPTZ fecha_movimiento
+    }
+    "core.reversiones" {
+        BIGSERIAL reversion_id PK
+        BIGINT transaccion_original_id
+        BIGINT transaccion_reversion_id
+        TEXT motivo
+        VARCHAR(50) usuario_solicitante
+        TIMESTAMPTZ fecha_ejecucion
+    }
+    "core.gestiones_cobranza" {
+        BIGSERIAL gestion_id PK
+        BIGINT credito_id FK
+        UUID cliente_id FK
+        TIMESTAMPTZ fecha_gestion
+        VARCHAR(20) canal_contacto
+        TEXT texto_nota
+    }
+
+    "security.audit_logs" {
+        BIGSERIAL audit_id PK
+        VARCHAR(50) tabla_afectada
+        VARCHAR(10) operacion
+        VARCHAR(50) usuario_db
+        JSONB old_data
+        JSONB new_data
+        TIMESTAMPTZ fecha_evento
+    }
+
+    "dq.data_quality_rules" {
+        SERIAL rule_id PK
+        VARCHAR(100) rule_name
+        VARCHAR(50) target_table
+        VARCHAR(50) check_type
+        VARCHAR(20) severity
+    }
+    "dq.data_quality_results" {
+        UUID execution_id PK
+        VARCHAR(100) dataset_name
+        VARCHAR(100) rule_name
+        BIGINT records_evaluated
+        BIGINT records_failed
+        NUMERIC failure_percentage
+        VARCHAR(20) status
+        TIMESTAMPTZ executed_at
+    }
+    "dq.pipeline_runs" {
+        UUID run_id PK
+        VARCHAR(100) pipeline_name
+        VARCHAR(20) source_layer
+        TIMESTAMPTZ start_time
+        TIMESTAMPTZ end_time
+        VARCHAR(20) status
+    }
+
+    "ai.quejas" {
+        UUID queja_id PK
+        UUID cliente_id FK
+        INT canal_id FK
+        TEXT texto_queja
+        VECTOR(1536) embedding_queja
+        TIMESTAMPTZ fecha_queja
+    }
+    "ai.ai_clasificaciones" {
+        UUID clasificacion_id PK
+        UUID queja_id FK
+        VARCHAR(50) modelo_version
+        VARCHAR(20) sentimiento
+        VARCHAR(20) nivel_urgencia
+        TEXT sugerencia_respuesta
+        BOOLEAN requiere_humano
+        TIMESTAMPTZ created_at
+    }
+    "ai.ai_audit_log" {
+        BIGSERIAL log_id PK
+        UUID clasificacion_id FK
+        VARCHAR(50) operador_humano_id
+        VARCHAR(20) decision_humana
+        TEXT comentarios
+        TIMESTAMPTZ fecha_revision
+    }
+
+    "analytics.dim_cliente" {
+        UUID cliente_key PK
+        VARCHAR(100) nombre
+        VARCHAR(100) apellido
+        VARCHAR(50) departamento
+        VARCHAR(50) provincia
+        VARCHAR(50) distrito
+        VARCHAR(20) nivel_riesgo
+        INT score_riesgo
+    }
+    "analytics.dim_producto" {
+        INT producto_key PK
+        VARCHAR(100) nombre_producto
+        VARCHAR(30) familia_producto
+        VARCHAR(3) moneda_id
+    }
+    "analytics.dim_canal" {
+        INT canal_key PK
+        VARCHAR(50) nombre_canal
+    }
+    "analytics.dim_sucursal" {
+        INT sucursal_key PK
+        VARCHAR(100) nombre_sucursal
+        VARCHAR(50) departamento
+        VARCHAR(50) provincia
+    }
+    "analytics.dim_segmento_rfm" {
+        INT segmento_rfm_key PK
+        VARCHAR(20) codigo_segmento
+        INT recencia_dias_min
+        INT recencia_dias_max
+        INT frecuencia_transacciones_min
+        NUMERIC monto_promedio_min
+        VARCHAR(200) descripcion_accion
+    }
+    "analytics.fact_transacciones_analytics" {
+        BIGINT fact_id PK
+        UUID cliente_key FK
+        INT producto_key FK
+        INT canal_key FK
+        INT sucursal_key FK
+        INT fecha_key
+        NUMERIC monto
+        NUMERIC comision
+    }
+    "analytics.fact_evaluacion_riesgo_crediticio" {
+        BIGINT evaluacion_id PK
+        UUID cliente_key FK
+        INT fecha_key
+        INT score_crediticio
+        NUMERIC probabilidad_default_pd
+        NUMERIC loss_given_default_lgd
+        NUMERIC probabilidad_churn
+        NUMERIC exposicion_total
+        VARCHAR(20) bucket_riesgo
+        DATE fecha_evaluacion
+    }
+
+    "reference.monedas" ||--o{ "reference.productos" : moneda
+    "reference.monedas" ||--o{ "core.cuentas" : moneda
+    "reference.monedas" ||--o{ "core.transacciones" : moneda
+    "reference.productos" ||--o{ "core.cuentas" : producto
+    "reference.productos" ||--o{ "core.solicitudes_credito" : producto
+    "reference.productos" ||--o{ "core.creditos" : producto
+    "reference.canales" ||--o{ "core.pagos_credito" : canal
+    "reference.canales" ||--o{ "core.transacciones" : canal
+    "reference.canales" ||--o{ "core.idempotencia" : canal
+    "reference.canales" ||--o{ "ai.quejas" : canal
+    "reference.sucursales" ||--o{ "core.transacciones" : sucursal
+    "reference.tipos_transaccion" ||--o{ "core.transacciones" : tipo
+
+    "core.clientes" ||--o{ "core.cuentas" : cliente
+    "core.clientes" ||--o{ "core.tarjetas" : cliente
+    "core.cuentas" ||--o{ "core.tarjetas" : cuenta
+    "core.clientes" ||--o{ "core.solicitudes_credito" : cliente
+    "core.solicitudes_credito" ||--o{ "core.evaluaciones_credito" : evaluacion
+    "core.solicitudes_credito" ||--o| "core.creditos" : origina
+    "core.clientes" ||--o{ "core.creditos" : cliente
+    "core.creditos" ||--o{ "core.cuotas" : credito
+    "core.cuotas" ||--o{ "core.pagos_credito" : cuota
+    "core.cuentas" ||--o{ "core.transacciones" : origen
+    "core.cuentas" |o--o{ "core.transacciones" : destino
+    "core.cuentas" ||--o{ "core.movimientos_contables" : cuenta
+    "core.creditos" ||--o{ "core.gestiones_cobranza" : credito
+    "core.clientes" ||--o{ "core.gestiones_cobranza" : cliente
+
+    "core.transacciones" ||..o{ "core.movimientos_contables" : movimiento
+    "core.transacciones" ||..o| "core.idempotencia" : idempotencia
+    "core.transacciones" ||..o{ "core.reversiones" : original
+    "core.transacciones" ||..o{ "core.reversiones" : reversion
+
+    "core.clientes" ||--o{ "ai.quejas" : cliente
+    "ai.quejas" ||--o{ "ai.ai_clasificaciones" : queja
+    "ai.ai_clasificaciones" ||--o{ "ai.ai_audit_log" : clasificacion
+
+    "analytics.dim_cliente" ||--o{ "analytics.fact_transacciones_analytics" : cliente
+    "analytics.dim_producto" ||--o{ "analytics.fact_transacciones_analytics" : producto
+    "analytics.dim_canal" ||--o{ "analytics.fact_transacciones_analytics" : canal
+    "analytics.dim_sucursal" ||--o{ "analytics.fact_transacciones_analytics" : sucursal
+    "analytics.dim_cliente" ||--o{ "analytics.fact_evaluacion_riesgo_crediticio" : cliente
